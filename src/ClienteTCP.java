@@ -24,8 +24,9 @@ public class ClienteTCP {
                     while ((mensagem = entrada.readLine()) != null) {
                         System.out.println(mensagem);
                     }
+                    System.out.println("[DEBUG] Fim da thread de recebimento.");
                 } catch (IOException e) {
-                    System.err.println("[ERRO] Conexão com o servidor perdida.");
+                    System.err.println("[ERRO] Conexão com o servidor perdida: " + e.getMessage());
                 }
             });
             threadRecebimento.start();
@@ -54,12 +55,24 @@ public class ClienteTCP {
             // Loop principal para enviar mensagens
             String mensagemUsuario;
             while (true) {
+                System.out.print("> "); // Prompt para o usuário
                 mensagemUsuario = console.readLine();
-                if (mensagemUsuario == null || mensagemUsuario.equalsIgnoreCase("/sair")) {
-                    saida.println("/sair"); // Notifica o servidor
+                if (mensagemUsuario == null) {
+                    System.out.println("[DEBUG] Entrada nula, encerrando cliente.");
                     break;
                 }
-                saida.println(mensagemUsuario);
+                mensagemUsuario = mensagemUsuario.trim();
+                if (mensagemUsuario.equalsIgnoreCase("/sair")) {
+                    saida.println("/sair");
+                    System.out.println("[DEBUG] Enviado /sair ao servidor.");
+                    break;
+                } else if (mensagemUsuario.equalsIgnoreCase("/usuarios")) {
+                    saida.println("/usuarios");
+                    System.out.println("[DEBUG] Solicitado lista de usuários.");
+                } else if (!mensagemUsuario.isEmpty()) {
+                    saida.println(mensagemUsuario);
+                    System.out.println("[DEBUG] Enviada mensagem: " + mensagemUsuario);
+                }
             }
 
         } catch (UnknownHostException e) {

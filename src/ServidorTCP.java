@@ -57,7 +57,7 @@ public class ServidorTCP {
                     String nome = entrada.readLine();
                     if (nome == null) {
                         System.out.println("[DEBUG] Cliente desconectou antes de enviar nome.");
-                        return; // Cliente desconectou
+                        return;
                     }
                     if (!nome.trim().isEmpty() && !nomeExiste(nome)) {
                         nomeUsuario = nome;
@@ -75,7 +75,9 @@ public class ServidorTCP {
                 // Loop de mensagens
                 String mensagem;
                 while ((mensagem = entrada.readLine()) != null) {
+                    System.out.println("[DEBUG] Recebida mensagem de " + nomeUsuario + ": " + mensagem);
                     if (mensagem.equalsIgnoreCase("/sair")) {
+                        System.out.println("[DEBUG] Cliente " + nomeUsuario + " solicitou sair.");
                         break;
                     } else if (mensagem.equalsIgnoreCase("/usuarios")) {
                         saida.println(listarUsuarios());
@@ -126,6 +128,7 @@ public class ServidorTCP {
         }
 
         private void broadcast(String mensagem, ClientHandler remetente) {
+            System.out.println("[DEBUG] Broadcast: " + mensagem);
             synchronized (clientes) {
                 for (ClientHandler cliente : clientes) {
                     if (cliente != remetente && cliente.saida != null) {
