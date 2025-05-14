@@ -32,15 +32,22 @@ public class ClienteTCP {
             threadRecebimento.start();
 
             // Solicitação do nome de usuário
-            System.out.print("Digite seu nome de usuário: ");
-            String nomeUsuario = console.readLine();
-            saida.println(nomeUsuario); // Envia o nome para o servidor
+            String mensagem;
+            while (true) {
+                System.out.print("Digite seu nome de usuário: ");
+                String nomeUsuario = console.readLine();
+                saida.println(nomeUsuario); // Envia o nome para o servidor
+                mensagem = entrada.readLine(); // Recebe resposta do servidor
+                System.out.println(mensagem);
+                if (mensagem.contains("Nome aceito")) {
+                    break;
+                }
+            }
 
             System.out.println("\n--- Chat Iniciado ---");
             System.out.println("Digite mensagens ou use /sair para sair.");
 
             // Loop principal para enviar mensagens
-            String mensagem;
             while (true) {
                 mensagem = console.readLine();
                 if (mensagem == null || mensagem.equalsIgnoreCase("/sair")) {

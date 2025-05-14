@@ -45,19 +45,18 @@ public class ServidorTCP {
 
                 // Solicita e valida o nome
                 saida.println("[SERVIDOR] Digite seu nome de usuário:");
-                nomeUsuario = entrada.readLine();
-
-                while (nomeUsuario == null || nomeUsuario.trim().isEmpty() || nomeExiste(nomeUsuario)) {
-                    if (nomeExiste(nomeUsuario)) {
-                        saida.println("[SERVIDOR] Nome já em uso. Escolha outro:");
-                    } else {
-                        saida.println("[SERVIDOR] Nome inválido. Tente novamente:");
-                    }
+                while (true) {
                     nomeUsuario = entrada.readLine();
+                    if (nomeUsuario != null && !nomeUsuario.trim().isEmpty() && !nomeExiste(nomeUsuario)) {
+                        break;
+                    }
+                    saida.println(nomeExiste(nomeUsuario)
+                            ? "[SERVIDOR] Nome já em uso. Escolha outro:"
+                            : "[SERVIDOR] Nome inválido. Tente novamente:");
                 }
 
+                saida.println("[SERVIDOR] Nome aceito. Bem-vindo ao chat!");
                 broadcast("[SERVIDOR] " + nomeUsuario + " entrou no chat!", this);
-
                 // Loop de mensagens
                 String mensagem;
                 while ((mensagem = entrada.readLine()) != null) {
