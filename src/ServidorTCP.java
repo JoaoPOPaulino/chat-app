@@ -4,20 +4,29 @@ import java.net.*;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ServidorTCP {
 
     private static final int PORTA = 2343;
     private static final List<ClientHandler> clientes = Collections.synchronizedList(new ArrayList<>());
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public static void main(String[] args) {
         try (ServerSocket servidor = new ServerSocket(PORTA)) {
             System.out.println("Servidor de chat iniciado na porta TCP " + PORTA + ". Aguardando conexões...");
+            synchronized (clientes) {
+                clientes.clear(); // Garante lista vazia no início
+                System.out.println("[DEBUG] Lista de clientes inicializada vazia.");
+            }
 
             while (true) {
                 Socket socketCliente = servidor.accept();
+                System.out.println("[DEBUG] Nova conexão de " + socketCliente.getInetAddress());
                 ClientHandler clientHandler = new ClientHandler(socketCliente);
-                clientes.add(clientHandler);
+                synchronized (clientes) {
+                    clientes.add(clientHandler);
+                }
                 new Thread(clientHandler).start();
             }
         } catch (IOException e) {
@@ -31,7 +40,6 @@ public class ServidorTCP {
         private PrintWriter saida;
         private BufferedReader entrada;
         private String nomeUsuario;
-        private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
@@ -46,17 +54,24 @@ public class ServidorTCP {
                 // Solicita e valida o nome
                 saida.println("[SERVIDOR] Digite seu nome de usuário:");
                 while (true) {
-                    nomeUsuario = entrada.readLine();
-                    if (nomeUsuario != null && !nomeUsuario.trim().isEmpty() && !nomeExiste(nomeUsuario)) {
+                    String nome = entrada.readLine();
+                    if (nome == null) {
+                        System.out.println("[DEBUG] Cliente desconectou antes de enviar nome.");
+                        return; // Cliente desconectou
+                    }
+                    if (!nome.trim().isEmpty() && !nomeExiste(nome)) {
+                        nomeUsuario = nome;
                         break;
                     }
-                    saida.println(nomeExiste(nomeUsuario)
+                    saida.println(nomeExiste(nome)
                             ? "[SERVIDOR] Nome já em uso. Escolha outro:"
                             : "[SERVIDOR] Nome inválido. Tente novamente:");
                 }
 
+                System.out.println("[DEBUG] Nome aceito: " + nomeUsuario);
                 saida.println("[SERVIDOR] Nome aceito. Bem-vindo ao chat!");
                 broadcast("[SERVIDOR] " + nomeUsuario + " entrou no chat!", this);
+
                 // Loop de mensagens
                 String mensagem;
                 while ((mensagem = entrada.readLine()) != null) {
@@ -69,24 +84,40 @@ public class ServidorTCP {
                     }
                 }
             } catch (IOException e) {
-                System.err.println("Erro com cliente " + nomeUsuario + ": " + e.getMessage());
+                System.err.println("Erro com cliente " + (nomeUsuario != null ? nomeUsuario : "Desconhecido") + ": " + e.getMessage());
             } finally {
-                clientes.remove(this);
-                broadcast("[SERVIDOR] " + nomeUsuario + " saiu do chat!", null);
+                if (nomeUsuario != null) {
+                    synchronized (clientes) {
+                        clientes.remove(this);
+                    }
+                    broadcast("[SERVIDOR] " + nomeUsuario + " saiu do chat!", null);
+                }
                 try {
                     socket.close();
                 } catch (IOException e) {
+                    System.err.println("Erro ao fechar socket: " + e.getMessage());
                 }
             }
         }
 
         private boolean nomeExiste(String nome) {
-            return clientes.stream().anyMatch(c -> c.nomeUsuario != null && c.nomeUsuario.equalsIgnoreCase(nome));
+            boolean existe = clientes.stream()
+                    .anyMatch(c -> c.nomeUsuario != null && c.nomeUsuario.equalsIgnoreCase(nome));
+            System.out.println("[DEBUG] Verificando nome '" + nome + "': " + (existe ? "Já existe" : "Disponível"));
+            if (existe) {
+                System.out.println("[DEBUG] Nomes atuais: "
+                        + clientes.stream()
+                                .map(c -> c.nomeUsuario != null ? c.nomeUsuario : "null")
+                                .collect(Collectors.joining(", ")));
+            }
+            return existe;
         }
 
         private String listarUsuarios() {
             StringBuilder sb = new StringBuilder("[SERVIDOR] Usuários online:\n");
-            clientes.forEach(c -> sb.append("- ").append(c.nomeUsuario).append("\n"));
+            synchronized (clientes) {
+                clientes.forEach(c -> sb.append("- ").append(c.nomeUsuario).append("\n"));
+            }
             return sb.toString();
         }
 
@@ -97,7 +128,7 @@ public class ServidorTCP {
         private void broadcast(String mensagem, ClientHandler remetente) {
             synchronized (clientes) {
                 for (ClientHandler cliente : clientes) {
-                    if (cliente != remetente) {
+                    if (cliente != remetente && cliente.saida != null) {
                         cliente.saida.println(mensagem);
                     }
                 }
