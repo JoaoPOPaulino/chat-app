@@ -1,9 +1,9 @@
 
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 public class ServidorTCP {
 
@@ -12,18 +12,16 @@ public class ServidorTCP {
 
     public static void main(String[] args) {
         try (ServerSocket servidor = new ServerSocket(PORTA)) {
-            System.out.println("Servidor de chat iniciado na porta TCP " + PORTA);
+            System.out.println("Servidor de chat iniciado na porta TCP " + PORTA + ". Aguardando conexões...");
 
             while (true) {
                 Socket socketCliente = servidor.accept();
-                System.out.println("Nova conexão de: " + socketCliente.getInetAddress().getHostAddress());
-
                 ClientHandler clientHandler = new ClientHandler(socketCliente);
                 clientes.add(clientHandler);
                 new Thread(clientHandler).start();
             }
         } catch (IOException e) {
-            System.out.println("Erro no servidor: " + e.getMessage());
+            System.err.println("Erro no servidor: " + e.getMessage());
         }
     }
 
@@ -33,6 +31,7 @@ public class ServidorTCP {
         private PrintWriter saida;
         private BufferedReader entrada;
         private String nomeUsuario;
+        private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
@@ -41,53 +40,70 @@ public class ServidorTCP {
         @Override
         public void run() {
             try {
-                // Configura streams com flush automático
-                saida = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+                saida = new PrintWriter(socket.getOutputStream(), true);
                 entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                // Solicita o nome do usuário
-                System.out.println("Enviando solicitação de nome para " + socket.getInetAddress());
-                saida.println("Digite seu nome de usuário:");
-                saida.flush(); // Garante que a mensagem é enviada
+                // Solicita e valida o nome
+                saida.println("[SERVIDOR] Digite seu nome de usuário:");
                 nomeUsuario = entrada.readLine();
-                System.out.println("Nome recebido: " + nomeUsuario);
 
-                if (nomeUsuario == null || nomeUsuario.trim().isEmpty()) {
-                    nomeUsuario = "Anônimo_" + socket.getInetAddress().getHostAddress();
+                while (nomeUsuario == null || nomeUsuario.trim().isEmpty() || nomeExiste(nomeUsuario)) {
+                    if (nomeExiste(nomeUsuario)) {
+                        saida.println("[SERVIDOR] Nome já em uso. Escolha outro:");
+                    } else {
+                        saida.println("[SERVIDOR] Nome inválido. Tente novamente:");
+                    }
+                    nomeUsuario = entrada.readLine();
                 }
 
-                broadcast(nomeUsuario + " entrou no chat!");
+                broadcast("[SERVIDOR] " + nomeUsuario + " entrou no chat!", this);
 
-                // Loop para receber mensagens
+                // Loop de mensagens
                 String mensagem;
                 while ((mensagem = entrada.readLine()) != null) {
-                    System.out.println("Mensagem recebida de " + nomeUsuario + ": " + mensagem);
                     if (mensagem.equalsIgnoreCase("/sair")) {
                         break;
+                    } else if (mensagem.equalsIgnoreCase("/usuarios")) {
+                        saida.println(listarUsuarios());
+                    } else {
+                        broadcast(formatarMensagem(nomeUsuario, mensagem), this);
                     }
-                    broadcast(nomeUsuario + ": " + mensagem);
                 }
             } catch (IOException e) {
-                System.out.println("Erro com cliente " + nomeUsuario + ": " + e.getMessage());
+                System.err.println("Erro com cliente " + nomeUsuario + ": " + e.getMessage());
             } finally {
                 clientes.remove(this);
-                broadcast(nomeUsuario + " saiu do chat!");
+                broadcast("[SERVIDOR] " + nomeUsuario + " saiu do chat!", null);
                 try {
                     socket.close();
                 } catch (IOException e) {
-                    System.out.println("Erro ao fechar socket: " + e.getMessage());
                 }
             }
         }
 
-        private void broadcast(String mensagem) {
+        private boolean nomeExiste(String nome) {
+            return clientes.stream().anyMatch(c -> c.nomeUsuario != null && c.nomeUsuario.equalsIgnoreCase(nome));
+        }
+
+        private String listarUsuarios() {
+            StringBuilder sb = new StringBuilder("[SERVIDOR] Usuários online:\n");
+            clientes.forEach(c -> sb.append("- ").append(c.nomeUsuario).append("\n"));
+            return sb.toString();
+        }
+
+        private String formatarMensagem(String remetente, String mensagem) {
+            return "[" + LocalTime.now().format(TIME_FORMATTER) + "] " + remetente + ": " + mensagem;
+        }
+
+        private void broadcast(String mensagem, ClientHandler remetente) {
             synchronized (clientes) {
                 for (ClientHandler cliente : clientes) {
-                    cliente.saida.println(mensagem);
-                    cliente.saida.flush(); // Garante que a mensagem é enviada
+                    if (cliente != remetente) {
+                        cliente.saida.println(mensagem);
+                    }
                 }
             }
-            System.out.println("Broadcast: " + mensagem);
+            System.out.println(mensagem); // Log no servidor
         }
     }
 }
