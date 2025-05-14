@@ -16,7 +16,7 @@ public class ServidorTCP {
         try (ServerSocket servidor = new ServerSocket(PORTA)) {
             System.out.println("Servidor de chat iniciado na porta TCP " + PORTA + ". Aguardando conexões...");
             synchronized (clientes) {
-                clientes.clear(); // Garante lista vazia no início
+                clientes.clear();
                 System.out.println("[DEBUG] Lista de clientes inicializada vazia.");
             }
 
@@ -53,6 +53,7 @@ public class ServidorTCP {
 
                 // Solicita e valida o nome
                 saida.println("[SERVIDOR] Digite seu nome de usuário:");
+                saida.flush();
                 while (true) {
                     String nome = entrada.readLine();
                     if (nome == null) {
@@ -66,10 +67,12 @@ public class ServidorTCP {
                     saida.println(nomeExiste(nome)
                             ? "[SERVIDOR] Nome já em uso. Escolha outro:"
                             : "[SERVIDOR] Nome inválido. Tente novamente:");
+                    saida.flush();
                 }
 
                 System.out.println("[DEBUG] Nome aceito: " + nomeUsuario);
                 saida.println("[SERVIDOR] Nome aceito. Bem-vindo ao chat!");
+                saida.flush();
                 broadcast("[SERVIDOR] " + nomeUsuario + " entrou no chat!", this);
 
                 // Loop de mensagens
@@ -81,6 +84,7 @@ public class ServidorTCP {
                         break;
                     } else if (mensagem.equalsIgnoreCase("/usuarios")) {
                         saida.println(listarUsuarios());
+                        saida.flush();
                     } else {
                         broadcast(formatarMensagem(nomeUsuario, mensagem), this);
                     }
@@ -133,10 +137,11 @@ public class ServidorTCP {
                 for (ClientHandler cliente : clientes) {
                     if (cliente != remetente && cliente.saida != null) {
                         cliente.saida.println(mensagem);
+                        cliente.saida.flush();
                     }
                 }
             }
-            System.out.println(mensagem); // Log no servidor
+            System.out.println(mensagem);
         }
     }
 }
